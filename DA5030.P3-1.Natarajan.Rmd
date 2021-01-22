@@ -1,0 +1,319 @@
+---
+title: "DA_5030_Practicum_3-Q1"
+author: "Gokul Narain Natarajan"
+date: "12/01/2020"
+output:
+  pdf_document: default
+  '': default
+---
+
+# *DA5030 - Data Mining and Machine Learning - Practicum 3 - Q1*
+
+## Problem 1:
+
+1. Download the data set on bank marketing (Bank Marketing Data Set. Inspect the file to determine whether it contains header names; you may wish to add those in R if it doesn't. The description of each column can be found in the data set explanation. Use the bank-additional-full.csv data set. Select an appropriate subset for testing. Use bank-additional.csv if your computer cannot process the full data set.
+
+### Importing the dataset
+
+```{r}
+# Import the data into new variable
+df <- read.csv("C:/Users/Lenovo/Desktop/Practicum 3/bank-additional.csv", sep = ";", header = TRUE)
+head(df,3)
+```
+
+2. Build an R Notebook named DA5030.P3-1.LastName.Rmd, where LastName is your last name.
+Saved the file with naming convention as given in the practicum
+
+3. Explore the data set as you see fit and that allows you to get a sense of the data and get comfortable with it.
+
+### Exploring the data
+
+```{r}
+str(df)
+summary(df)
+table(df$y)
+```
+
+
+4. Build a classification model using a support vector machine that predicts if a bank customer will open a term deposit account.
+
+### Data Coversion- Coverting all varible to numeric 
+
+```{r}
+# Taking the dataset into new variable
+df1 <- df
+head(df1,3)
+
+# Dummy encoding for converting factors to numbers except target variable
+# Installing the caret package:
+if(!require(caret))
+  {
+    install.packages("caret")
+    library(caret)
+  }
+
+
+dmy <- dummyVars("~.",data = df1[-21])
+df1 <- data.frame(predict(dmy,newdata = df1))
+
+# Combining the target variable to new dataset 
+df1 <- cbind(df1, df[21])
+head(df1,2)
+table(df1$y)
+```
+
+### Data Standardization 
+
+```{r}
+# Creating a function for data standardization 
+# Although the R function for SVM will perform automatic scaling, we are doing it
+stand <- function(x)   #Creating a function
+{
+  return((x-mean(x))/(sd(x))) 
+}
+
+# Applying the above standadization fn to all except the target var
+df1 <- as.data.frame(lapply(df1[-64],stand))
+df1 <- cbind(df1, df$y)
+head(df1,2)
+
+# changing the col name of target var
+colnames(df1)[64] <- "y"
+
+# No of yes and no in new dataset
+table(df1$y)
+```
+
+### Target variable data conversion
+
+```{r}
+# Installing the dplyr package:
+if(!require(dplyr))
+  {
+    install.packages("dplyr")
+    library(dplyr)
+  }
+# Converting yes to 1 and no to 0
+df1 <- df1 %>% mutate(y=ifelse(y=="no",0,1))
+head(df1,2)
+```
+
+### Training and Testing dataset
+
+```{r}
+# Spliting training and testing data:
+x= 0.7*nrow(df1)
+y=nrow(df1)
+round(x)
+round(y)
+
+train <- df1[1:x,]
+test <- df1[(x+1):y,]
+
+# Number of yes and no in training and testing data
+table(train$y)
+table(test$y)
+```
+
+### Building SVM model 
+
+```{r, warning= FALSE}
+# Installing the e1071 package:
+if(!require(e1071))
+  {
+    install.packages("e1071")
+    library(e1071)
+  }
+classr <- svm(formula=y~., data = train, type='C-classification',  kernel = 'linear')
+```
+
+### Applying the model to testing dataset
+
+```{r}
+# Applying predict fn to testing dataset
+predict_svm <- predict(classr, newdata=test[-64])
+```
+
+### Confusion Matrix
+
+```{r}
+# Confusion matrix
+table(predict_svm,test$y)
+
+#Compare the result using Crosstable function and calculating the results from
+  #- confusion matrix
+library(gmodels)
+CrossTable(predict_svm,test$y,prop.chisq = FALSE,prop.c = FALSE,prop.r = FALSE,dnn = c("Predicted","Actual"))
+```
+### Calculating Accuracy - both manual and from R
+
+$Accuracy = ((TN+TP)/Total)*100$
+
+$Accuracy = ((1069+62)/1235)*100$
+
+$Accuracy = ((1069+62)/1235)*100$
+
+$Accuracy = 91.6\%$
+
+```{r}
+# Calculating accuracy through R
+accr_svm <- test[64]
+acc_svm <- accr_svm %>% mutate(predict_svm)
+accur_svm <- accr_svm %>% mutate(accurate=1*(predict_svm==test$y))
+accuracy_svm <- sum(accur_svm$accurate)/nrow(accur_svm)
+accuracy_svm <- accuracy_svm*100
+
+message("Accuracy of SVM model is ", round(accuracy_svm,4))
+```
+
+5. Build another classification model using a neural network that also predicts if a bank customer will open a term deposit account.
+
+### Building neural network model algorithm from training dataset
+
+```{r}
+# Installing the neuralnet package:
+if(!require(neuralnet))
+  {
+    install.packages("neuralnet")
+    library(neuralnet)
+}
+
+nn_model <- neuralnet(y ~ ., data = train)
+plot(nn_model)
+```
+
+
+### Applying the model to the testing dataset
+
+```{r}
+# Predicting the target from testing dataset thru compute fn
+predict_nn <- neuralnet::compute(nn_model, test[-64])
+predict_nn_1 <- predict_nn$net.result
+```
+
+### Converting the predicted value to binary by taking threshold of 0.5
+
+```{r}
+predict_nn_2 <- ifelse(predict_nn_1>0.5,1,0)
+cor(predict_nn_2, test$y)
+```
+
+### Confusion Matrix
+
+```{r}
+# Confusion matrix
+table(predict_nn_2,test$y)
+
+#Compare the result using Crosstable function and calculating the results from
+  #- confusion matrix
+library(gmodels)
+CrossTable(predict_nn_2,test$y,prop.chisq = FALSE,prop.c = FALSE,prop.r = FALSE,dnn = c("Predicted","Actual"))
+```
+
+### Calculating Accuracy - both manual and from R
+
+$Accuracy = ((TN+TP)/Total)*100$
+
+$Accuracy = ((979+103)/1235)*100$
+
+$Accuracy = ((1082)/1235)*100$
+
+$Accuracy = 87.6\%$
+
+```{r}
+# Calculating accuracy through R
+accr_nn <- test[64]
+acc_nn <- accr_nn %>% mutate(predict_nn_2)
+accur_nn <- accr_nn %>% mutate(accurate=1*(predict_nn_2==test$y))
+accuracy_nn <- sum(accur_nn$accurate)/nrow(accur_nn)
+accuracy_nn <- accuracy_nn*100
+
+message("Accuracy of Neural Network model is ", round(accuracy_nn,4))
+```
+
+6. Compare the accuracy of the two models based on AUC. Chapter 10 in the text book is helpful in explaining AUC and ROC and how to calculate and interpret this metric in R.
+
+### ROC curve and the AUC
+
+```{r,warning=FALSE}
+# Installing the pROC package:
+if(!require(pROC))
+  {
+    install.packages("pROC")
+    library(pROC)
+}
+
+# Ordering the number of SVM predictions for ROC function
+predict_svm_roc <- ordered(predict_svm)
+
+# ROC curve for SVM
+roc_svm <- roc(test$y~predict_svm_roc)
+# ROC curve for nn
+roc_nn <- roc(test$y~predict_nn_2)
+
+# Plotting ROC Curve of SVM and nn with AUC values and the best thresold val
+plot.roc(roc_svm,print.auc=TRUE,col="green",lwd =4,legacy.axes=TRUE,main="ROC Curves", print.thres = "best"); par(new=TRUE)
+plot.roc(roc_nn,print.auc=TRUE,col="blue",lwd =4,legacy.axes=TRUE,print.auc.y=0.4, print.thres = "best")
+```
+
+#### The above plot is for True positive rate (x-axis) and False positive rate (y-axix)
+#### The vertical line of the result is the correct prediction and the horizontal line of the prdiction is the incorrect prediction.
+#### Based on the definition given in the text book, the SVM AUC falls under the Acceptable/Fair category
+#### Based on the definition given in the text book, the nn AUC falls under the Excelent/Good category
+#### The AUC value of nn model = 0.828 is greater than the AUC value of SVM model = 0.717 so nn model is good in identifying postive values.
+#### Based on the Area Under the Curve (0.829 for nn), Neural Network model is a better model than the SVM.
+
+
+
+7. Calculate precision and recall for both models. See this article to understand how to calculate these metrics or consult chapter 10 in the text book.
+
+### Calculating Precision and Recall
+
+```{r}
+# Installing the pROC package:
+if(!require(pROC))
+  {
+    install.packages("pROC")
+    library(pROC)
+}
+
+# Converting the features to factors for calculating precision of SVM
+predict_svm_precision <- as.factor(predict_svm)
+test_data <- as.factor(test$y)
+
+# Precision calculation for SVM
+prec_svm <- posPredValue(predict_svm_precision,test_data, positive = "0")
+message("The Precision value of SVM model is ", round(prec_svm,4))
+
+# Converting the features to factors for calculating precision of nn
+predict_nn_precision <- as.factor(predict_nn_2)
+
+# Precision calculation for nn
+prec_nn <- posPredValue(predict_nn_precision,test_data, positive = "0")
+message("The Precision value of nn model is ", round(prec_nn,4))
+
+# -----------------------------------------------------------------------------
+
+# Recall calculation of SVM
+recall_svm <- sensitivity(predict_svm_precision,test_data, positive = "0")
+message("The Recall value of SVM model is ", round(recall_svm,4))
+
+# Recall calculation of nn
+recall_nn <- sensitivity(predict_nn_precision,test_data, positive = "0")
+message("The Recall value of nn model is ", round(recall_nn,4))
+```
+
+#### The precision value of nn model is higer than SVM.
+#### The performance of model in prediction only positive class is around 97% for nn whereas it is 94% for SVM.
+#### Based on the precision values, nn model is trustworthy compared to nn
+#### 97% of nn results are relevant and is able to target the 0 and ignoring 1 - means targeting  the clients does not subscribed for a term deposit while ignoring the clients subscribed for the term deposit
+#### and 93% of SVM results are relevant and is able to target the 0 and ignoring 1 - means targeting  the clients does not subscribed for a term deposit while ignoring the clients subscribed for the term deposit
+
+#### Recall value of SVM is higher than nn.
+#### SVM is overly aggressive in finding the positive cases.
+#### 97% of relevant result is classified by the by the SVM algorithm - SVM taken large portion of positive example that the client does not subscribed for a term deposit.
+#### 88% of relevant result is classified by the by the nn algorithm - nn also taken large portion of positive example that the client does not subscribed for a term deposit but leser upon comparing it with SVM.
+
+
+
+
